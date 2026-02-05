@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Embed Player</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #222;
+            color: #fff;
+            text-align: center;
+            padding: 50px;
+        }
+
+        iframe {
+            border: 2px solid #ef4444;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Local Embed Test</h1>
+    <p>Testing URL: http://localhost:9091/embed/VpAZskU09VQ</p>
+
+    <iframe src="http://localhost:9091/embed/VpAZskU09VQ" width="800" height="450" allowfullscreen
+        allow="autoplay; encrypted-media">
+    </iframe>
+
+    <p style="margin-top: 20px; color: #aaa;">
+        If this works here but not on your site, the issue is likely <b>Mixed Content (HTTP vs HTTPS)</b>.
+    </p>
+</body>
+
+</html>

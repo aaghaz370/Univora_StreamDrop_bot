@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Univora StreamDrop</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Plyr CSS for Video Player -->
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+
+    <style>
+        /* Custom Font */
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+        :root {
+            /* Vibrant Red Theme */
+            --primary: #ef4444;
+            /* Red-500 */
+            --primary-dark: #dc2626;
+            /* Red-600 */
+            --primary-glow: rgba(239, 68, 68, 0.5);
+
+            --bg-dark: #000000;
+            /* Pure Black for contrast */
+            --card-bg: #111111;
+            /* Very dark gray */
+            --text-main: #ffffff;
+            --text-muted: #9ca3af;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        /* Dynamic Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                radial-gradient(circle at 50% 50%, rgba(220, 38, 38, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 30%);
+            animation: pulseBg 10s ease-in-out infinite alternate;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        @keyframes pulseBg {
+            0% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+
+            100% {
+                transform: scale(1.1);
+                opacity: 1;
+            }
+        }
+
+        /* Glass Card */
+        .container-glass {
+            background: rgba(20, 20, 20, 0.8);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid rgba(239, 68, 68, 0.3);
+            /* Red top border accent */
+            box-shadow: 0 0 40px rgba(220, 38, 38, 0.1);
+        }
+
+        /* Plyr Customization - Red Theme */
+        .plyr {
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            margin-bottom: 2rem;
+            --plyr-color-main: var(--primary);
+            --plyr-video-background: #000;
+        }
+
+        /* Buttons */
+        .btn {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+            border: 1px solid transparent;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: #d1d5db;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: white;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+        }
+
+        /* Loader */
+        .loader {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Typography Accents */
+        .text-accent {
+            background: linear-gradient(to right, #fff, #ef4444);
+            -webkit-background-clip: text;
+            background-clip: text;
+            /* Fix Lint ID: f6eb25e1-e421-4aa5-9398-f2dfb3cb6f53 */
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* --- Video Loader Overlay CSS --- */
+        .video-loader-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 50;
+            /* Above Player Controls if needed, but usually below default controls */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            /* Allow clicking through if needed, handled by JS toggling class */
+        }
+
+        .dot-flashing {
+            position: relative;
+            width: 12px;
+            height: 12px;
+            border-radius: 10px;
+            background-color: var(--primary);
+            color: var(--primary);
+            animation: dot-flashing 1s infinite linear alternate;
+            animation-delay: 0.5s;
+        }
+
+        .dot-flashing::before,
+        .dot-flashing::after {
+            content: "";
+            display: inline-block;
+            position: absolute;
+            top: 0;
+        }
+
+        .dot-flashing::before {
+            left: -18px;
+            width: 12px;
+            height: 12px;
+            border-radius: 10px;
+            background-color: var(--primary);
+            color: var(--primary);
+            animation: dot-flashing 1s infinite alternate;
+            animation-delay: 0s;
+        }
+
+        .dot-flashing::after {
+            left: 18px;
+            width: 12px;
+            height: 12px;
+            border-radius: 10px;
+            background-color: var(--primary);
+            color: var(--primary);
+            animation: dot-flashing 1s infinite alternate;
+            animation-delay: 1s;
+        }
+
+        @keyframes dot-flashing {
+            0% {
+                background-color: var(--primary);
+            }
+
+            50%,
+            100% {
+                background-color: rgba(239, 68, 68, 0.2);
+            }
+        }
+    </style>
+</head>
+
+<body class="justify-center items-center p-4">
+
+    <!-- Main Card -->
+    <div class="container-glass rounded-[20px] w-full max-w-5xl p-6 md:p-10 mx-auto transition-all duration-700 opacity-0 translate-y-8"
+        id="main-card">
+
+        <!-- ... Header code ... -->
+
+        <!-- (Keeping Header as is, just showing context for edit) -->
+        <div class="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
+            <div class="flex items-center gap-4">
+                <!-- Icon -->
+                <div
+                    class="w-12 h-12 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-500 shadow-lg shadow-red-500/10">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                </div>
+                <!-- Title -->
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-white">
+                        UNIVORA <span class="text-red-500">STREAMDROP</span>
+                    </h1>
+                    <p class="text-xs text-gray-400 font-medium tracking-[0.2em] uppercase mt-1">Premium File Gateway
+                    </p>
+                </div>
+            </div>
+            <!-- Live Badge -->
+            <div class="hidden md:block">
+                <div
+                    class="text-xs text-white bg-red-600 px-4 py-1.5 rounded-full font-bold shadow-lg shadow-red-600/20 animate-pulse">
+                    LIVE
+                </div>
+            </div>
+        </div>
+
+        <!-- Loader -->
+        <div id="loader-container" class="flex flex-col items-center justify-center py-24">
+            <div class="loader mb-6 relative">
+                <div class="absolute inset-0 bg-red-500 blur-xl opacity-20"></div>
+            </div>
+            <p class="text-gray-300 text-sm font-medium tracking-wide animate-pulse">INITIALIZING SECURE LINK...</p>
+        </div>
+
+        <!-- Content -->
+        <div id="content-container" class="hidden">
+
+            <!-- Video Player -->
+            <div id="video-wrapper" class="hidden relative group overflow-hidden rounded-[16px]">
+                <!-- Added overflow hidden for overlay containment -->
+                <div
+                    class="absolute -inset-1 bg-gradient-to-r from-red-600 to-transparent rounded-[18px] blur opacity-20 group-hover:opacity-40 transition duration-1000">
+                </div>
+
+                <div class="relative">
+                    <!-- VIDEO LOADING OVERLAY -->
+                    <div id="video-loader-overlay" class="video-loader-overlay opacity-0 pointer-events-none">
+                        <div class="dot-flashing"></div>
+                    </div>
+
+                    <video id="player" playsinline controls class="w-full">
+                        <!-- Source injected by JS -->
+                    </video>
+                </div>
+            </div>
+
+            <!-- File Details -->
+            <div class="mb-10">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div class="flex-1">
+                        <h2 id="file-name"
+                            class="text-xl md:text-2xl font-bold text-white leading-snug break-words mb-3"></h2>
+                        <div class="flex flex-wrap gap-2">
+                            <span
+                                class="text-[10px] font-bold px-2 py-1 rounded bg-white/10 text-white border border-white/10">
+                                HIGH SPEED
+                            </span>
+                            <span
+                                class="text-[10px] font-bold px-2 py-1 rounded bg-red-500/10 text-red-500 border border-red-500/20">
+                                SECURE
+                            </span>
+                            <span
+                                class="text-[10px] font-bold px-2 py-1 rounded bg-white/10 text-gray-300 border border-white/10"
+                                id="file-size-badge">
+                                -- MB
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5" id="buttons-grid">
+                <!-- JS Injects Buttons Here -->
+            </div>
+
+            <!-- Footer -->
+            <div class="mt-12 pt-6 border-t border-white/5 text-center">
+                <p
+                    class="text-[10px] text-gray-500 uppercase tracking-widest hover:text-red-500 transition-colors cursor-default">
+                    Powered by Univora StreamDrop Technology
+                </p>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-container" class="hidden text-center py-24">
+            <div
+                class="w-20 h-20 bg-red-500/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                    stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-2">Link Unavailable</h3>
+            <p class="text-gray-400 text-sm max-w-sm mx-auto">The requested content is no longer available or the link
+                has expired.</p>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <script>
+        const BASE_URL = window.location.origin;
+        const FILE_ID = window.location.pathname.split("/").pop();
+
+        window.addEventListener('load', () => {
+            document.getElementById('main-card').classList.remove('opacity-0', 'translate-y-8');
+        });
+
+        async function fetchFileData() {
+            const loader = document.getElementById("loader-container");
+            const content = document.getElementById("content-container");
+            const errorContainer = document.getElementById("error-container");
+            const fileNameEl = document.getElementById("file-name");
+            const fileSizeBadge = document.getElementById("file-size-badge");
+            const buttonsGrid = document.getElementById("buttons-grid");
+            const videoWrapper = document.getElementById("video-wrapper");
+            const playerEl = document.getElementById("player");
+            const videoLoader = document.getElementById("video-loader-overlay");
+
+            try {
+                const res = await fetch(`${BASE_URL}/api/file/${FILE_ID}`);
+                if (!res.ok) throw new Error();
+
+                const data = await res.json();
+                document.title = `Univora | ${data.file_name}`;
+
+                fileNameEl.innerText = data.file_name;
+                fileSizeBadge.innerText = data.file_size;
+
+                let buttonsHtml = '';
+
+                // Primary Download Button (Full Red)
+                buttonsHtml += `
+                    <a href="${data.direct_dl_link}" class="btn btn-primary flex items-center justify-center gap-3 py-4 md:col-span-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download File / Stream Direct
+                    </a>
+                `;
+
+                if (data.is_media) {
+                    videoWrapper.classList.remove('hidden');
+                    playerEl.src = data.direct_dl_link;
+                    playerEl.type = "video/mp4";
+
+                    const player = new Plyr('#player', {
+                        controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'],
+                        settings: ['quality', 'speed', 'loop'],
+                        tooltips: { controls: true, seek: true }
+                    });
+
+                    // --- VIDEO LOADER LOGIC ---
+                    const showLoader = () => videoLoader.classList.remove('opacity-0', 'pointer-events-none');
+                    const hideLoader = () => videoLoader.classList.add('opacity-0', 'pointer-events-none');
+
+                    // Show loader initially
+                    showLoader();
+
+                    // Event Listeners for Loader
+                    player.on('ready', () => { hideLoader(); });
+                    player.on('playing', () => { hideLoader(); });
+                    player.on('waiting', () => { showLoader(); });
+                    player.on('seeking', () => { showLoader(); });
+                    player.on('seeked', () => { hideLoader(); });
+                    player.on('canplay', () => { hideLoader(); });
+
+                    // Fallback to ensure it hides if playing starts
+                    playerEl.addEventListener('play', hideLoader);
+                    playerEl.addEventListener('playing', hideLoader);
+                    // --------------------------
+
+                    // Secondary Players
+                    buttonsHtml += `
+                        <a href="${data.vlc_player_link}" class="btn btn-secondary flex items-center justify-center gap-2 py-3">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/e/e6/VLC_Icon.svg" width="20" height="20" alt="VLC"> 
+                            Play in VLC
+                        </a>
+                        <a href="${data.mx_player_link}" class="btn btn-secondary flex items-center justify-center gap-2 py-3">
+                            <span class="font-bold text-blue-400 text-lg">MX</span>
+                            Play in MX Player
+                        </a>
+                    `;
+
+                    // --- EMBED SECTION INJECTION ---
+                    const embedHtml = `
+                    <div class="mt-8 p-4 bg-black/20 rounded-xl border border-white/5">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-bold text-gray-300 uppercase tracking-wider">Embed Video</h3>
+                            <button onclick="copyEmbed()" class="text-xs text-red-400 hover:text-red-300 font-semibold uppercase tracking-wide transition-colors">Copy Code</button>
+                        </div>
+                        <div class="relative group">
+                            <pre class="w-full bg-black/40 text-gray-400 text-xs p-3 rounded-lg overflow-x-auto border border-white/5 font-mono select-all" id="embed-code"><iframe src="${data.embed_link}" width="640" height="360" frameborder="0" allowfullscreen></iframe></pre>
+                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-black/10 pointer-events-none"></div>
+                        </div>
+                    </div>
+                    `;
+
+                    setTimeout(() => {
+                        const embedContainer = document.createElement("div");
+                        embedContainer.innerHTML = embedHtml;
+                        // Insert before the footer
+                        const footer = document.querySelector(".mt-12.pt-6.border-t");
+                        if (footer) footer.parentNode.insertBefore(embedContainer, footer);
+                    }, 100);
+                }
+
+                buttonsGrid.innerHTML = buttonsHtml;
+                loader.style.display = "none";
+                content.classList.remove('hidden');
+
+            } catch (err) {
+                console.error(err);
+                loader.style.display = "none";
+                errorContainer.classList.remove('hidden');
+            }
+        }
+
+        function copyEmbed() {
+            const codeEl = document.getElementById("embed-code");
+            const code = codeEl.innerText;
+            const btn = document.querySelector("button[onclick='copyEmbed()']");
+
+            // Helper to show feedback
+            const showSuccess = () => {
+                const originalText = "Copy Code";
+                btn.innerText = "COPIED!";
+                btn.classList.add("text-green-400");
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.classList.remove("text-green-400");
+                }, 2000);
+            };
+
+            // 1. Try Modern Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(code)
+                    .then(showSuccess)
+                    .catch(() => fallbackCopy(code));
+            } else {
+                fallbackCopy(code);
+            }
+
+            // 2. Fallback for Localhost/HTTP
+            function fallbackCopy(text) {
+                try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = text;
+
+                    // Move off-screen instead of display:none or opacity:0
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-9999px";
+                    textArea.style.top = "0";
+
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+
+                    if (successful) showSuccess();
+                    else btn.innerText = "Error Copying";
+                } catch (err) {
+                    console.error("Fallback failed", err);
+                    btn.innerText = "Error Copying";
+                }
+            }
+        }
+
+        fetchFileData();
+    </script>
+</body>
+
+</html>

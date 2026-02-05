@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Univora Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #000;
+            color: #fff;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .accent-text {
+            color: #ef4444;
+        }
+
+        .btn-copy {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-copy:hover {
+            background: #ef4444;
+            color: white;
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold">UNIVORA <span class="accent-text">DASHBOARD</span></h1>
+                <p class="text-gray-400 text-sm">Manage all your streamed files</p>
+            </div>
+            <div class="flex gap-4">
+                <div class="glass px-4 py-2 rounded-lg text-center">
+                    <span class="block text-xl font-bold" id="total-count">0</span>
+                    <span class="text-xs text-gray-400 uppercase">Total Files</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="mb-6">
+            <input type="text" id="search" placeholder="Search files..."
+                class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-gray-300">
+        </div>
+
+        <!-- Table Container -->
+        <div class="glass rounded-xl overflow-hidden shadow-2xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-gray-400">
+                    <thead class="text-xs text-gray-200 uppercase bg-neutral-900/50 border-b border-white/10">
+                        <tr>
+                            <th class="px-6 py-4">Date</th>
+                            <th class="px-6 py-4">File Name</th>
+                            <th class="px-6 py-4">Size</th>
+                            <th class="px-6 py-4 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="files-table-body" class="divide-y divide-white/5">
+                        <!-- Rows injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p id="loading-txt" class="text-center mt-10 text-gray-500 animate-pulse">Loading links...</p>
+    </div>
+
+    <script>
+        const BASE_URL = window.location.origin;
+        // Get secret from URL params if we want to secure API calls later
+        const urlParams = new URLSearchParams(window.location.search);
+        const SECRET = urlParams.get('key') || '';
+
+        async function loadFiles() {
+            try {
+                const res = await fetch(`${BASE_URL}/api/all_files?key=${SECRET}`);
+                if (!res.ok) throw new Error("Failed to load");
+                const files = await res.json();
+
+                renderTable(files);
+                document.getElementById('total-count').innerText = files.length;
+                document.getElementById('loading-txt').classList.add('hidden');
+
+                // Search Logic
+                document.getElementById('search').addEventListener('input', (e) => {
+                    const term = e.target.value.toLowerCase();
+                    const filtered = files.filter(f => f.file_name.toLowerCase().includes(term));
+                    renderTable(filtered);
+                });
+
+            } catch (err) {
+                document.getElementById('loading-txt').innerText = "Error loading files. Authentication failed?";
+                console.error(err);
+            }
+        }
+
+        function renderTable(files) {
+            const tbody = document.getElementById('files-table-body');
+            if (files.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center">No files found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = files.map(file => {
+                const unique_id = file._id;
+                const safe_name = file.file_name.replace(/[^a-zA-Z0-9.\-_]/g, '');
+                const streamLink = `${BASE_URL}/show/${unique_id}`;
+                const embedLink = `${BASE_URL}/embed/${unique_id}`;
+                const dlLink = `${BASE_URL}/dl/${unique_id}/${safe_name}`;
+
+                return `
+                <tr class="hover:bg-white/5 transition">
+                    <td class="px-6 py-4 whitespace-nowrap font-mono text-xs">${file.date_str || '-'}</td>
+                    <td class="px-6 py-4 font-medium text-white break-all max-w-md">
+                        ${file.file_name}
+                        <br><span class="text-xs text-gray-500 font-mono tracking-wider">${unique_id}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">${file.file_size || '-'}</td>
+                    <td class="px-6 py-4 space-y-2 md:space-y-0 md:space-x-2 text-center">
+                        <button onclick="copyToClipboard('${streamLink}', this)" class="btn-copy px-3 py-1.5 rounded-md text-xs font-bold transition">STREAM</button>
+                        <button onclick="copyToClipboard('${embedLink}', this)" class="btn-copy px-3 py-1.5 rounded-md text-xs font-bold transition">EMBED</button>
+                        <button onclick="copyToClipboard('${dlLink}', this)" class="btn-copy px-3 py-1.5 rounded-md text-xs font-bold transition">DL</button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function copyToClipboard(text, btn) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = btn.innerText;
+                btn.innerText = "COPIED";
+                btn.classList.add('bg-green-500', 'text-white', 'border-transparent');
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.classList.remove('bg-green-500', 'text-white', 'border-transparent');
+                }, 1500);
+            });
+        }
+
+        loadFiles();
+    </script>
+</body>
+
+</html>
