@@ -50,8 +50,15 @@ async def lifespan(app: FastAPI):
         if len(multi_clients) > 1:
             print(f"✅ Multi-Client Mode Enabled. Total Clients: {len(multi_clients)}")
 
-        # Ensure we know about the channels
-        # force_refresh_dialogs removed as it is not supported for bots
+        # --- FIX FOR RENDER / FRESH SESSION ---
+        # Fresh sessions don't have Access Hashes cached, so we must fetch dialogs first.
+        print("Refreshing Dialogs to cache channel access hashes...")
+        try:
+            async for dialog in bot.get_dialogs():
+                pass # Just iterating caches the peers
+            print("✅ Dialogs refreshed.")
+        except Exception as e:
+            print(f"Warning: Dialog refresh failed (Non-fatal): {e}")
 
         print(f"Verifying storage channel ({Config.STORAGE_CHANNEL})...")
         try:
