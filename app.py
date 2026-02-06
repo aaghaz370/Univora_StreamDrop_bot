@@ -677,13 +677,6 @@ async def stream_media(r:Request,unique_id:str,fname:str):
 # --- MAIN EXECUTION BLOCK ---
 # =====================================================================================
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    print("🔻 Shutting down... Killing Telegram Bot...")
-    if bot.is_connected:
-       await bot.stop()
-    print("✅ Bot stopped.")
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     # timeout_keep_alive=0 helps aggressive killing of old connections
