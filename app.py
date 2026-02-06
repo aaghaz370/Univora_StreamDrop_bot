@@ -677,7 +677,14 @@ async def stream_media(r:Request,unique_id:str,fname:str):
 # --- MAIN EXECUTION BLOCK ---
 # =====================================================================================
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    print("🔻 Shutting down... Killing Telegram Bot...")
+    if bot.is_connected:
+       await bot.stop()
+    print("✅ Bot stopped.")
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    # Log level ko "info" rakho taaki hamara filter kaam kar sake
-    uvicorn.run("app:app", host="0.0.0.0", port=port, log_level="info")
+    # timeout_keep_alive=0 helps aggressive killing of old connections
+    uvicorn.run("app:app", host="0.0.0.0", port=port, log_level="info", timeout_keep_alive=5)
