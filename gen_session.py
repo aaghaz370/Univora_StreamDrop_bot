@@ -34,11 +34,7 @@ async def main():
         print("Make sure 'SimpleStreamBot.session' exists and is not corrupt.")
         return
 
-    # Force a refresh of dialogs just to be 100% sure cache is hot
-    print("Refreshing peers...")
-    async for d in app.get_dialogs(): pass
-    
-    # Export
+    # Export Session String directly from the loaded file
     s = await app.export_session_string()
     print("\n✅ SUPER SESSION STRING GENERATED:\n")
     print(s)

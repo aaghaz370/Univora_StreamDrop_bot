@@ -65,7 +65,8 @@ async def lifespan(app: FastAPI):
             await bot.get_chat(Config.STORAGE_CHANNEL)
             print("✅ Storage channel accessible hai.")
         except Exception as e:
-            print(f"!!! ERROR: Could not access Storage Channel ({Config.STORAGE_CHANNEL}). Make sure the bot is a MEMBER and ADMIN in this channel. Error: {e}")
+            print(f"!!! ERROR: Could not access Storage Channel ({Config.STORAGE_CHANNEL}). Error: {e}")
+            print("👉 ACTION REQUIRED: Please SEND A MESSAGE (e.g. '.') in the Storage Channel NOW so I can find it!")
 
         if Config.FORCE_SUB_CHANNEL:
             try:
@@ -278,6 +279,13 @@ async def dashboard_command(client: Client, message: Message):
         await message.reply_text(f"🎛 **Admin Dashboard**\n\nLink: `{link}`\n\n(Buttons disabled on localhost)", disable_web_page_preview=True)
     else:
         await message.reply_text(f"🎛 **Admin Dashboard**\n\nClick below to manage files.", reply_markup=button)
+
+# --- CHANNEL WARMUP HANDLER ---
+@bot.on_message(filters.channel)
+async def channel_warmup(client: Client, message: Message):
+    # This handler helps the bot "see" the channel and cache its Access Hash
+    # correcting the "Peer id invalid" error on fresh sessions.
+    print(f"🔥 CHANNEL WARMUP: Detected message in {message.chat.title} ({message.chat.id}). Access Hash cached.")
 
 async def handle_file_upload(message: Message, user_id: int):
     # --- SECURITY CHECK ---
