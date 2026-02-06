@@ -41,7 +41,17 @@ async def lifespan(app: FastAPI):
     
     try:
         print("Starting main Pyrogram bot...")
-        await bot.start()
+        try:
+            await bot.start()
+        except FloodWait as e:
+            print(f"!!! FLOOD WAIT ERROR: Telegram blocked login for {e.value} seconds.")
+            print(f"!!! PLEASE WAIT {e.value // 60} MINUTES BEFORE RESTARTING.")
+            print("!!! DO NOT RESTART IMMEDIATELY OR THE TIMER WILL INCREASE.")
+            return # Exit startup logic
+        except Exception as e:
+            # Catch other start errors
+            print(f"!!! Error starting bot: {e}")
+            raise e
         
         me = await bot.get_me()
         Config.BOT_USERNAME = me.username
