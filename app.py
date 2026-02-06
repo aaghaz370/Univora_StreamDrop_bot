@@ -126,8 +126,9 @@ if Config.SESSION_STRING:
     print("RESUMING SESSION FROM STRING...")
     bot = Client("SimpleStreamBot", api_id=Config.API_ID, api_hash=Config.API_HASH, session_string=Config.SESSION_STRING, in_memory=True)
 else:
-    print("STARTING FRESH BOT SESSION...")
-    bot = Client("SimpleStreamBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN, in_memory=True)
+    print("STARTING FRESH BOT SESSION (Local File Storage)...")
+    # in_memory=False allows creating a .session file locally, fixing "Peer id invalid" on restarts
+    bot = Client("SimpleStreamBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN, in_memory=False)
 
 multi_clients = {}; work_loads = {}; class_cache = {}
 
