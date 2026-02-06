@@ -589,30 +589,28 @@ class ByteStreamer:
             work_loads[i] = 0
         work_loads[i] += 1
         
-        # Session Retrieval / Creation with Retry
-        ms = None
-        for _ in range(3):
-            try:
-                ms = c.media_sessions.get(f.dc_id)
-                if ms is None:
-                    if f.dc_id != await c.storage.dc_id():
-                        ak = await Auth(c, f.dc_id, await c.storage.test_mode()).create()
-                        ms = Session(c, f.dc_id, ak, await c.storage.test_mode(), is_media=True)
-                        await ms.start()
-                        
-                        # Re-export/Import Auth
-                        ea = await c.invoke(raw.functions.auth.ExportAuthorization(dc_id=f.dc_id))
-                        await ms.invoke(raw.functions.auth.ImportAuthorization(id=ea.id, bytes=ea.bytes))
-                    else:
-                        ms = c.session
-                    c.media_sessions[f.dc_id] = ms
-                break
-            except Exception as e:
-                print(f"DEBUG: Session creation failed, retrying... {e}")
-                await asyncio.sleep(1)
+        # Session Retrieval - Strict Cache
+        try:
+             # Ensure media session exists for this DC
+             if f.dc_id != await c.storage.dc_id():
+                 # We need a custom session for this DC
+                 if not c.media_sessions.get(f.dc_id):
+                      print(f"Creating new Media Session for DC {f.dc_id}")
+                      ak = await Auth(c, f.dc_id, await c.storage.test_mode()).create()
+                      ms = Session(c, f.dc_id, ak, await c.storage.test_mode(), is_media=True)
+                      await ms.start()
+                      
+                      # Export auth
+                      ea = await c.invoke(raw.functions.auth.ExportAuthorization(dc_id=f.dc_id))
+                      await ms.invoke(raw.functions.auth.ImportAuthorization(id=ea.id, bytes=ea.bytes))
+                      
+                      c.media_sessions[f.dc_id] = ms
+             
+             # Get the session to use
+             ms = c.media_sessions.get(f.dc_id) or c.session
 
-        if not ms:
-            print("CRITICAL: Could not create media session.")
+        except Exception as e:
+            print(f"CRITICAL: Failed to initialize media session: {e}")
             if i in work_loads: work_loads[i] -= 1
             return 
 
@@ -626,36 +624,35 @@ class ByteStreamer:
                 chunk_index = current_pos // chunk_size
                 req_offset = chunk_index * chunk_size
                 
+                # Fetch
                 chunk_data = await self.fetch_chunk(ms, loc, req_offset, chunk_size)
                 
-                if chunk_data is None:
-                    print(f"CRITICAL: Failed to fetch chunk at {req_offset}")
+                if not chunk_data:
+                    print(f"Stream Ended Prematurely at {req_offset}")
                     break
                 
+                # Calculate slice
                 offset_in_chunk = current_pos % chunk_size
                 
                 if offset_in_chunk >= len(chunk_data):
+                     # Should not happen if math is right, but safe break
                      break
 
-                # Slice what we need
                 available = len(chunk_data) - offset_in_chunk
-                to_take = min(available, bytes_remaining)
+                take_bytes = min(available, bytes_remaining)
                 
-                payload = chunk_data[offset_in_chunk : offset_in_chunk + to_take]
+                payload = chunk_data[offset_in_chunk : offset_in_chunk + take_bytes]
                 
                 yield payload
                 
-                sent_len = len(payload)
-                current_pos += sent_len
-                bytes_remaining -= sent_len
+                current_pos += len(payload)
+                bytes_remaining -= len(payload)
                 
-                if sent_len == 0:
-                    break
+                # Yield to event loop to avoid blocking heartbeats
+                await asyncio.sleep(0)
 
         except Exception as e:
-            print(f"Stream Error: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Stream Interrupted: {e}")
         finally:
              if i in work_loads: work_loads[i] -= 1
 
@@ -665,36 +662,64 @@ async def stream_media(r:Request,unique_id:str,fname:str):
     message_id, backups = await db.get_link(unique_id)
     if not message_id: raise HTTPException(404, "Link invalid")
 
-    # Fallback logic for client selection
-    c = None
+    # Client Selection Logic
+    c = bot # Default to main bot
     client_id = 0
-    if work_loads and multi_clients:
+    
+    # If using multi-clients, pick the least busy
+    if multi_clients:
+        # Filter out 0 (main bot) if we want to offload work, or include it
         client_id = min(work_loads, key=work_loads.get)
-        c = multi_clients.get(client_id)
-    if not c: c = bot or multi_clients.get(0)
+        c = multi_clients.get(client_id) or bot
+
+    if not c: c = bot
     
-    tc=class_cache.get(c) or ByteStreamer(c);class_cache[c]=tc
+    # Get/Create Streamer
+    if c not in class_cache:
+        class_cache[c] = ByteStreamer(c)
+    tc = class_cache[c]
     
-    # Use Advanced Failover
+    # Use Advanced Failover to find which channel actually works
     target_msg = await get_target_message(c, message_id, backups)
 
-    if not target_msg: raise HTTPException(404, "Lost File - All sources failed")
+    if not target_msg: 
+        print(f"Error: Message {message_id} not found in any channels.")
+        raise HTTPException(404, "File not found in channels")
     
     try:
         m=target_msg.document or target_msg.video or target_msg.audio
         if not m:raise FileNotFoundError
-        fid=FileId.decode(m.file_id);fsize=m.file_size;rh=r.headers.get("Range","");fb,ub=0,fsize-1
+        fid=FileId.decode(m.file_id)
+        fsize=m.file_size
+        
+        # Range Header Parsing
+        rh=r.headers.get("Range","")
+        fb,ub=0,fsize-1
         if rh:
-            rps=rh.replace("bytes=","").split("-");fb=int(rps[0])
-            if len(rps)>1 and rps[1]:ub=int(rps[1])
-        if(ub>=fsize)or(fb<0):raise HTTPException(416)
-        rl=ub-fb+1;cs=1024*1024
+            rps=rh.replace("bytes=","").split("-")
+            fb=int(rps[0])
+            if len(rps)>1 and rps[1]:
+                ub=int(rps[1])
+        
+        if(ub>=fsize)or(fb<0):
+            # Cap at size
+            ub = fsize - 1
+            
+        rl=ub-fb+1
+        cs=1024*1024 # 1MB Chunk
         
         body=tc.yield_file(fid,client_id,fb,ub,cs)
         
         sc=206 if rh else 200
-        hdrs={"Content-Type":m.mime_type or "application/octet-stream","Accept-Ranges":"bytes","Content-Disposition":f'inline; filename="{m.file_name}"',"Content-Length":str(rl)}
-        if rh:hdrs["Content-Range"]=f"bytes {fb}-{ub}/{fsize}"
+        hdrs={
+            "Content-Type":m.mime_type or "application/octet-stream",
+            "Accept-Ranges":"bytes",
+            "Content-Disposition":f'inline; filename="{m.file_name}"',
+            "Content-Length":str(rl)
+        }
+        if rh:
+            hdrs["Content-Range"]=f"bytes {fb}-{ub}/{fsize}"
+            
         return StreamingResponse(body,status_code=sc,headers=hdrs)
     except FileNotFoundError:raise HTTPException(404)
     except Exception:print(traceback.format_exc());raise HTTPException(500)
