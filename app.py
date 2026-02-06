@@ -461,8 +461,16 @@ async def embed_page(request: Request, unique_id: str):
     # If list has items -> Strict Mode
     
     if allowed_domains:
+        # BYPASS IF DEBUG MODE IS ON
+        if Config.DEBUG_MODE:
+             print(f"⚠️ DEBUG MODE: Allowing access to embed for {unique_id} from anywhere.")
+             is_allowed = True
+        else:
+             is_allowed = False # Default deny if restriction active
+             
         referer = request.headers.get("referer", "")
-        is_allowed = False
+        # is_allowed initialized above based on Debug Mode
+        
         ref_domain = "Direct/Unknown"
 
         if referer:

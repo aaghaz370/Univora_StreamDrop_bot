@@ -42,3 +42,5 @@ class Config:
     # Example: ["mysite.com", "another-site.com"]
     # Empty list means ALLOW ALL
     ALLOWED_DOMAINS = os.environ.get("ALLOWED_DOMAINS", "").split(",") if os.environ.get("ALLOWED_DOMAINS") else []
+    
+    DEBUG_MODE = os.environ.get("DEBUG_MODE", "False").lower() in ("true", "1", "t")
