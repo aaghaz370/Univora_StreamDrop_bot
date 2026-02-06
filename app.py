@@ -60,13 +60,17 @@ async def lifespan(app: FastAPI):
         if len(multi_clients) > 1:
             print(f"✅ Multi-Client Mode Enabled. Total Clients: {len(multi_clients)}")
 
-        print(f"Verifying storage channel ({Config.STORAGE_CHANNEL})...")
+        # --- CONNECTION TEST ---
+        print(f"Testing access to Storage Channel ({Config.STORAGE_CHANNEL})...")
         try:
-            await bot.get_chat(Config.STORAGE_CHANNEL)
-            print("✅ Storage channel accessible hai.")
+            await bot.send_message(Config.STORAGE_CHANNEL, "🟢 **Bot Connected Successfully!**\nService has restarted.")
+            print("✅ TEST PASSED: Successfully sent message to Storage Channel.")
+            print("✅ Channel Access is 100% WORKING.")
         except Exception as e:
-            print(f"!!! ERROR: Could not access Storage Channel ({Config.STORAGE_CHANNEL}). Error: {e}")
-            print("👉 ACTION REQUIRED: Please SEND A MESSAGE (e.g. '.') in the Storage Channel NOW so I can find it!")
+             print("❌ TEST FAILED: Could not send message to Storage Channel.")
+             print("!!! CRITICAL: Bot likely has 'Peer Id Invalid' error.")
+             print(f"Error Details: {e}")
+             print("SOLUTION: Please manually send a message in the channel!")
 
         if Config.FORCE_SUB_CHANNEL:
             try:
@@ -454,48 +458,40 @@ async def show_page(request: Request, unique_id: str):
 
 @app.get("/embed/{unique_id}", response_class=HTMLResponse)
 async def embed_page(request: Request, unique_id: str):
-    # --- DOMAIN RESTRICTION LOGIC ---
     allowed_domains = [d.strip().lower() for d in Config.ALLOWED_DOMAINS if d.strip()]
     
-    # Use generic 'allow' if list is empty
-    # If list has items -> Strict Mode
+    is_allowed = False
     
-    if allowed_domains:
-        # BYPASS IF DEBUG MODE IS ON
-        if Config.DEBUG_MODE:
-             print(f"⚠️ DEBUG MODE: Allowing access to embed for {unique_id} from anywhere.")
-             is_allowed = True
-        else:
-             is_allowed = False # Default deny if restriction active
-             
+    # 1. Bypass if Debug Mode
+    if Config.DEBUG_MODE:
+        is_allowed = True
+        print(f"⚠️ DEBUG EMBED: Allowed {unique_id} (DEBUG_MODE=True)")
+    
+    # 2. If no domains listed = Public Mode
+    elif not allowed_domains:
+        is_allowed = True
+        
+    # 3. Check Referer
+    else:
         referer = request.headers.get("referer", "")
-        # is_allowed initialized above based on Debug Mode
-        
-        ref_domain = "Direct/Unknown"
+        if not referer:
+            # Block direct access in Strict Mode
+            is_allowed = False 
+        else:
+             from urllib.parse import urlparse
+             try:
+                 ref_domain = urlparse(referer).netloc.lower()
+                 if ":" in ref_domain: ref_domain = ref_domain.split(":")[0]
+                 
+                 for allowed in allowed_domains:
+                      if ref_domain == allowed or ref_domain.endswith(f".{allowed}"):
+                          is_allowed = True
+                          break
+             except:
+                 pass
 
-        if referer:
-            from urllib.parse import urlparse
-            try:
-                parsed = urlparse(referer)
-                ref_domain = parsed.netloc.lower()
-                if ":" in ref_domain: ref_domain = ref_domain.split(":")[0]
-                
-                # Check match
-                for allowed in allowed_domains:
-                     if ref_domain == allowed or ref_domain.endswith(f".{allowed}"):
-                         is_allowed = True
-                         break
-            except:
-                pass
-        
-        # Localhost Exception for testing (always allow localhost to see if it works)
-        if ref_domain in ["localhost", "127.0.0.1"]:
-            is_allowed = True
-            
-        print(f"DEBUG EMBED: Ref='{ref_domain}' | Allowed={is_allowed} | Whitelist={allowed_domains}")
-
-        if not is_allowed:
-            # --- RESTRICTED PAGE ---
+    if not is_allowed:
+        # --- RESTRICTED PAGE ---
             # We must ensure this error page ITSELF allows framing so the user sees the message!
             error_html = """
                 <html>
