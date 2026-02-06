@@ -50,16 +50,6 @@ async def lifespan(app: FastAPI):
         if len(multi_clients) > 1:
             print(f"✅ Multi-Client Mode Enabled. Total Clients: {len(multi_clients)}")
 
-        # --- FIX FOR RENDER / FRESH SESSION ---
-        # Fresh sessions don't have Access Hashes cached, so we must fetch dialogs first.
-        print("Refreshing Dialogs to cache channel access hashes...")
-        try:
-            async for dialog in bot.get_dialogs():
-                pass # Just iterating caches the peers
-            print("✅ Dialogs refreshed.")
-        except Exception as e:
-            print(f"Warning: Dialog refresh failed (Non-fatal): {e}")
-
         print(f"Verifying storage channel ({Config.STORAGE_CHANNEL})...")
         try:
             await bot.get_chat(Config.STORAGE_CHANNEL)
@@ -122,7 +112,13 @@ app.add_middleware(
 # logging.getLogger("uvicorn.access").addFilter(HideDLFilter())
 # --- FIX KHATAM ---
 
-bot = Client("SimpleStreamBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN, in_memory=False)
+if Config.SESSION_STRING:
+    print("RESUMING SESSION FROM STRING...")
+    bot = Client("SimpleStreamBot", api_id=Config.API_ID, api_hash=Config.API_HASH, session_string=Config.SESSION_STRING, in_memory=True)
+else:
+    print("STARTING FRESH BOT SESSION...")
+    bot = Client("SimpleStreamBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN, in_memory=True)
+
 multi_clients = {}; work_loads = {}; class_cache = {}
 
 # =====================================================================================
