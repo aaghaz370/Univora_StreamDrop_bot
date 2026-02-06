@@ -14,26 +14,38 @@ if not API_ID or not API_HASH or not BOT_TOKEN:
     exit(1)
 
 async def main():
-    print("--- Generating Session String ---")
-    print("Connecting...")
+    print("--- GENERATING STRING FROM LOCAL SESSION ---")
+    print("This will convert your working local 'SimpleStreamBot.session' file into a string.")
     
-    # Initialize with memory storage to create a fresh string
+    # Use the SAME session name as app.py to load the existing file
     app = Client(
-        "UnivoraGenerator",
+        "SimpleStreamBot",
         api_id=int(API_ID),
         api_hash=API_HASH,
         bot_token=BOT_TOKEN,
-        in_memory=True
+        # in_memory=False ensures we load the file
+        in_memory=False
     )
     
-    await app.start()
+    try:
+        await app.start()
+    except Exception as e:
+        print(f"Error starting bot: {e}")
+        print("Make sure 'SimpleStreamBot.session' exists and is not corrupt.")
+        return
+
+    # Force a refresh of dialogs just to be 100% sure cache is hot
+    print("Refreshing peers...")
+    async for d in app.get_dialogs(): pass
     
     # Export
     s = await app.export_session_string()
-    print("\n✅ SESSION STRING GENERATED:\n")
+    print("\n✅ SUPER SESSION STRING GENERATED:\n")
     print(s)
     print("\n--------------------------------------------------------------")
-    print("COPY THE STRING ABOVE AND ADD IT TO RENDER ENV VARS AS 'SESSION_STRING'")
+    print("1. COPY the string above.")
+    print("2. PASTE it into Render Environment Variables as 'SESSION_STRING'.")
+    print("3. REDEPLOY.")
     print("--------------------------------------------------------------")
 
     await app.stop()
